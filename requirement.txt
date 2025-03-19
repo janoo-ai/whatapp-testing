@@ -1,0 +1,15 @@
+openai==1.57.1
+pinecone
+Flask-Cors
+flask
+flask-restful
+uuid
+cohere
+langchain-community
+beautifulsoup4
+pandas
+psycopg2-binary
+nltk
+DBUtils==3.1.0
+PyMySQL==1.1.1
+mysqlclient==2.2.6

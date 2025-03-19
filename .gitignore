@@ -1,0 +1,7 @@
+venv
+vemv
+.vscode
+__pycache__
+chat_api
+.pyre
+.env
