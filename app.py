@@ -12,6 +12,7 @@ import time
 import base64
 import json
 import os
+from whatsapp import user_bot_id_phone_mapping, send_whatsapp_message
 
 
 logging.basicConfig(
@@ -158,7 +159,7 @@ class IndexHandler(Resource):
         prompt_end = f"\n\nQuestion: {query}\n Answer:"
         prompt = ""
        
-        if rerank:
+        if rerank and contexts:
             reranked_contexts, doc_keys, file_types, sub_types = self.rerank_contexts(
                 query, contexts, doc_keyss, file_type, sub_type
             )
@@ -440,6 +441,7 @@ def bot_context(ansId):
     finally:
         cursor.close()
         con.close()
+
 @app.route('/webhook', methods=['GET'])
 def verify_webhook():
     mode = request.args.get("hub.mode")
@@ -454,32 +456,62 @@ def verify_webhook():
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
     data = request.get_json()
-    
-    if "entry" in data:
-        for entry in data["entry"]:
-            for change in entry["changes"]:
-                if "messages" in change["value"]:
-                    message = change["value"]["messages"][0]
-                    sender_number = message["from"]
-                    user_message = message["text"]["body"]
 
-                    print(f"Received message from {sender_number}: {user_message}")
+    # Check if the payload contains the correct structure
+    if data.get("field") == "messages" and "value" in data :
+        value = data["value"]
 
-                    # Identify bot namespace
-                    namespace = user_namespace_mapping.get(sender_number, "default_namespace")
 
-                    # Fetch relevant context from Pinecone
-                    context = fetch_context_from_pinecone(namespace, user_message)
+        if "messages" in value and "metadata" in value:
 
-                    # Generate AI response
-                    bot_response = generate_response(user_message, context)
+            metadata = value["metadata"]
+            phone_number_id = metadata["phone_number_id"]
 
-                    # Send response back to WhatsApp
-                    send_whatsapp_message(sender_number, bot_response)
-                    
+            for message in value["messages"]:
+                sender_number = message.get("from")
+                user_message = message.get("text", {}).get("body", "")
+                visitor_id = sender_number
+                uid = str(uuid.uuid4())
+
+
+                
+
+                print(f"Received message from {sender_number}: {user_message}")
+
+                # Identify bot namespace
+                bot_id, user_id = user_bot_id_phone_mapping(sender_number)
+
+                # Fetch relevant context from Pinecone
+                prompt, doc_keys, contexts, file_type, sub_type  = index_handler.retrieve(user_message, bot_id, True, False, "")
+                list_of_url_object = [{"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]} for i in range(len(doc_keys))]
+                json_string = json.dumps(list_of_url_object)
+
+                encoded_string = base64.b64encode(json_string.encode('utf-8')).decode('utf-8')  
+                
+                # Generate AI response
+                bot_response = openai_client.chat.completions.create(
+                        model="gpt-4o-2024-08-06",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0,
+                        max_tokens=400,
+                        top_p=1,
+                        frequency_penalty=0,
+                        presence_penalty=0,
+                        stop=None,
+                        stream=False,
+                    )
+
+                # Send response back to WhatsApp
+                send_whatsapp_message(phone_number_id, sender_number, bot_response)
+    @after_this_request
+    def store_data():
+        # Store data for analysis
+        store_data_rag_analysis(
+            uid, contexts, bot_id, bot_response , user_message, prompt, "", visitor_id, "" , visitor_id
+        )
+        
+
     return jsonify({"status": "received"}), 200
-
-
-
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5004, debug=True)  # ,
