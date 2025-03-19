@@ -440,7 +440,17 @@ def bot_context(ansId):
     finally:
         cursor.close()
         con.close()
+@app.route('/webhook', methods=['GET'])
+def verify_webhook():
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
 
+    if mode == "subscribe" and token == "vedantkiranfarde":
+        return challenge, 200  # Return the challenge value
+    else:
+        return jsonify({"error": "Verification failed"}), 403
+    
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
     data = request.get_json()
