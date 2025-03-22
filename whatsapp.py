@@ -2,7 +2,7 @@ from rds import get_db_connection
 import os
 import requests
 
-def user_bot_id_phone_mapping(phone):
+def user_bot_id_phone_mapping(phone_number_id):
     con = get_db_connection()
     if con is None:
         print("Failed to establish a database connection.")
@@ -12,9 +12,9 @@ def user_bot_id_phone_mapping(phone):
         cursor = con.cursor()
         sql_query = """
             SELECT bot_id, user_id FROM whatsapp_integration              
-            WHERE whatsapp_number = %s
+            WHERE phone_number_id = %s
         """
-        cursor.execute(sql_query, (phone,))
+        cursor.execute(sql_query, (phone_number_id,))
 
         row = cursor.fetchone()
 
@@ -33,7 +33,7 @@ def user_bot_id_phone_mapping(phone):
 
 
 
-def send_whatsapp_message(phone_number_id, sender_number, bot_response):
+def send_whatsapp_message(phone_number_id, sender_number, bot_response:str):
     WHATSAPP_API_URL = f"https://graph.facebook.com/v22.0/{phone_number_id}/messages"
     WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN") 
 

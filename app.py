@@ -472,14 +472,11 @@ def whatsapp_webhook():
                 user_message = message.get("text", {}).get("body", "")
                 visitor_id = sender_number
                 uid = str(uuid.uuid4())
-
-
                 
 
                 print(f"Received message from {sender_number}: {user_message}")
-
                 # Identify bot namespace
-                bot_id, user_id = user_bot_id_phone_mapping(sender_number)
+                bot_id, user_id = user_bot_id_phone_mapping(phone_number_id)
 
                 # Fetch relevant context from Pinecone
                 prompt, doc_keys, contexts, file_type, sub_type  = index_handler.retrieve(user_message, bot_id, True, False, "")
@@ -500,17 +497,17 @@ def whatsapp_webhook():
                         stop=None,
                         stream=False,
                     )
+                print(bot_response.choices[0].message.content)
 
                 # Send response back to WhatsApp
-                send_whatsapp_message(phone_number_id, sender_number, bot_response)
+                send_whatsapp_message(phone_number_id, sender_number, str(bot_response.choices[0].message.content))
     @after_this_request
-    def store_data():
+    def store_data(response):
         # Store data for analysis
         store_data_rag_analysis(
-            uid, contexts, bot_id, bot_response , user_message, prompt, "", visitor_id, "" , visitor_id
+            uid, contexts, bot_id, str(bot_response.choices[0].message.content) , user_message, prompt, "", visitor_id, "" , visitor_id
         )
-        
-
+        return response
     return jsonify({"status": "received"}), 200
     
 if __name__ == "__main__":
