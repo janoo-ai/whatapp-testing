@@ -524,72 +524,81 @@ def whatsapp_webhook():
       # Generate UID at the start
 
     # Check if the payload contains the correct structure
-    if data.get("field") == "messages" and isinstance(data.get("entry"), list):
-        for entry in data["entry"]:
-            if isinstance(entry.get("changes"), list):
-                for change in entry["changes"]:
-                    value = change.get("value", {})
+    if not data or "entry" not in data or not isinstance(data["entry"], list):
+        logging.error("Invalid payload structure: Missing 'entry'")
+        return jsonify({"error": "Invalid payload structure"}), 400
+    
+    for entry in data["entry"]:
+        if "changes" not in entry or not isinstance(entry["changes"], list):
+                logging.error("Invalid payload structure: Missing 'changes'")
+                continue 
+        for change in entry["changes"]:
+                value = change.get("value", {})
 
-                    if isinstance(value, dict) and "messages" in value and "metadata" in value:
-                        metadata = value.get("metadata", {})
-                        phone_number_id = metadata.get("phone_number_id")
+                if not isinstance(value, dict):
+                    logging.error("Invalid 'value' structure")
+                    continue
 
-                        for message in value.get("messages", []):
-                            sender_number = message.get("from", "")
-                            user_message = message.get("text", {}).get("body", "")
-                            visitor_id = sender_number
+                if "messages" in value and "metadata" in value:
+                    metadata = value.get("metadata", {})
+                    phone_number_id = metadata.get("phone_number_id", "Unknown")
 
-                            print(f"Received message from {sender_number}: {user_message}")
+                    for message in value.get("messages", []):
+                        sender_number = message.get("from", "")
+                        user_message = message.get("text", {}).get("body", "")
+                        visitor_id = sender_number
 
-                            # Identify bot namespace
-                            bot_id, user_id = user_bot_id_phone_mapping(phone_number_id)
+                        logging.info(f"Message from {sender_number}: {user_message}")
 
-                            # Fetch relevant context from Pinecone
-                            retrieval_result = index_handler.retrieve(user_message, bot_id, True, False, "")
+                        # Identify bot namespace
+                        bot_id, user_id = user_bot_id_phone_mapping(phone_number_id)
 
-                            # Ensure retrieval_result contains expected values
-                            if retrieval_result and len(retrieval_result) >= 5:
-                                prompt, doc_keys, contexts, file_type, sub_type = retrieval_result
-                            else:
-                                contexts, prompt, doc_keys, file_type, sub_type = [], "", [], [], []  # Default values
+                        # Fetch relevant context from Pinecone
+                        retrieval_result = index_handler.retrieve(user_message, bot_id, True, False, "")
 
-                            list_of_url_object = [
-                                {"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]}
-                                for i in range(len(doc_keys))
-                            ]
-                            json_string = json.dumps(list_of_url_object)
-                            encoded_string = base64.b64encode(json_string.encode("utf-8")).decode("utf-8")
+                        # Ensure retrieval_result contains expected values
+                        if retrieval_result and len(retrieval_result) >= 5:
+                            prompt, doc_keys, contexts, file_type, sub_type = retrieval_result
+                        else:
+                            contexts, prompt, doc_keys, file_type, sub_type = [], "", [], [], []  # Default values
 
-                            # Generate AI response
-                            bot_response = openai_client.chat.completions.create(
-                                model="gpt-4o-2024-08-06",
-                                messages=[{"role": "user", "content": prompt}],
-                                temperature=0,
-                                max_tokens=400,
-                                top_p=1,
-                                frequency_penalty=0,
-                                presence_penalty=0,
-                                stop=None,
-                                stream=False,
+                        list_of_url_object = [
+                            {"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]}
+                            for i in range(len(doc_keys))
+                        ]
+                        json_string = json.dumps(list_of_url_object)
+                        encoded_string = base64.b64encode(json_string.encode("utf-8")).decode("utf-8")
+
+                        # Generate AI response
+                        bot_response = openai_client.chat.completions.create(
+                            model="gpt-4o-2024-08-06",
+                            messages=[{"role": "user", "content": prompt}],
+                            temperature=0,
+                            max_tokens=400,
+                            top_p=1,
+                            frequency_penalty=0,
+                            presence_penalty=0,
+                            stop=None,
+                            stream=False,
+                        )
+
+                        bot_reply = bot_response.choices[0].message.content
+                        print(bot_reply)
+
+                        # Send response back to WhatsApp
+                        send_whatsapp_message(phone_number_id, sender_number, bot_reply)
+
+                        # Ensure `contexts` is captured correctly in `store_data`
+                        # uid, contexts, botid, answer, query, prompt, email, phone, name, visitor_id
+
+                        @after_this_request
+                        def store_data(response, contexts=contexts, bot_reply=bot_reply, prompt=prompt, visitor_id=visitor_id):
+                            store_data_rag_analysis(
+                                uid, contexts, bot_id, bot_reply, user_message, prompt, "", visitor_id, "", visitor_id
                             )
+                            return response
 
-                            bot_reply = bot_response.choices[0].message.content
-                            print(bot_reply)
-
-                            # Send response back to WhatsApp
-                            send_whatsapp_message(phone_number_id, sender_number, bot_reply)
-
-                            # Ensure `contexts` is captured correctly in `store_data`
-                            # uid, contexts, botid, answer, query, prompt, email, phone, name, visitor_id
-
-                            @after_this_request
-                            def store_data(response, contexts=contexts, bot_reply=bot_reply, prompt=prompt, visitor_id=visitor_id):
-                                store_data_rag_analysis(
-                                    uid, contexts, bot_id, bot_reply, user_message, prompt, "", visitor_id, "", visitor_id
-                                )
-                                return response
-
-                        return jsonify({"status": "received"}), 200
+                    return jsonify({"status": "received"}), 200
 
     return jsonify({"status": "invalid request"}), 400  # Handle incorrect payloads properly
 
