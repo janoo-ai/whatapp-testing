@@ -518,11 +518,16 @@ def verify_webhook():
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
     data = request.get_json()
-    uid = str(uuid.uuid4())  # Generate UID at the start
+    uid = str(uuid.uuid4())
+    logging.info(f'''data \n {data} \n''')    
+    logging.info(f'''value \n {data["value"]} ''')
+      # Generate UID at the start
 
     # Check if the payload contains the correct structure
     if data.get("field") == "messages" and "value" in data:
         value = data["value"]
+
+        
 
         if "messages" in value and "metadata" in value:
             metadata = value["metadata"]
