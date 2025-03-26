@@ -520,8 +520,7 @@ def whatsapp_webhook():
     data = request.get_json()
     uid = str(uuid.uuid4())
     logging.info(f'''data \n {data} \n''')    
-    logging.info(f'''value \n {data["value"]} ''')
-      # Generate UID at the start
+          # Generate UID at the start
 
     # Check if the payload contains the correct structure
     if not data or "entry" not in data or not isinstance(data["entry"], list):
