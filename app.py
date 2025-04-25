@@ -546,7 +546,7 @@ def whatsapp_webhook():
 
 
 @app.route('/fbmsg/webhook', methods=['GET'])
-def verify_webhook():
+def verify_fb_webhook():
     mode = request.args.get("hub.mode")
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
