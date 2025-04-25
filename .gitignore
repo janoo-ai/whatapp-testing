@@ -4,4 +4,6 @@ vemv
 __pycache__
 chat_api
 .pyre
+env
 .env
+pyre

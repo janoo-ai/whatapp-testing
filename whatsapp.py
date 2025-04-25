@@ -1,6 +1,12 @@
 from rds import get_db_connection
 import os
 import requests
+import logging
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s"
+)
+
 
 def user_bot_id_phone_mapping(phone_number_id):
     con = get_db_connection()

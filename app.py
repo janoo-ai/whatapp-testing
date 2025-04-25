@@ -13,7 +13,7 @@ import base64
 import json
 import os
 from whatsapp import user_bot_id_phone_mapping, send_whatsapp_message
-
+from fbmessenger import user_bot_id_page_id_mapping, send_fb_message
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s"
@@ -31,7 +31,6 @@ pinecone_client = Pinecone(
 )
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 cohere_client = cohere.Client(COHERE_API_KEY)
-
 
 class IndexHandler(Resource):
     def __init__(self, index_name):
@@ -185,7 +184,6 @@ class IndexHandler(Resource):
         prompt = prompt_start + "\n\n---\n\n".join(combined_contexts) + prompt_end
         return prompt, list(set(doc_keyss[:5])), contexts, file_type[:5], sub_type[:5]
 
-
 index_handler = IndexHandler(index_name="jaano2")
 
 def store_data_rag_analysis(
@@ -298,7 +296,6 @@ def get_credits(user_id: str, bot_id: str, max_retries=100, retry_delay=0.5):
         cursor.close()
         con.close()
 
-
 @app.route("/botquery/<user_id>/<botId>", methods=["POST"])
 def bot_query(user_id,botId):
     reranking = (
@@ -375,8 +372,6 @@ def bot_query(user_id,botId):
     
     return generate(), {"Content-Type": "text/plain", "doc_keys": encoded_string, "uid": uid} 
 
-
-
 @app.route("/answer/<ansId>", methods=["POST"])
 def bot_ans(ansId):
     data = request.get_json()
@@ -411,7 +406,6 @@ def bot_ans(ansId):
     finally:
         cursor.close()
         con.close()
-
 
 @app.route("/context/<ansId>", methods=["GET"])
 def bot_context(ansId):
@@ -452,75 +446,14 @@ def verify_webhook():
         return challenge, 200  # Return the challenge value
     else:
         return jsonify({"error": "Verification failed"}), 403
-    
-# @app.route("/webhook", methods=["POST"])
-# def whatsapp_webhook():
-#     data = request.get_json()
-#     uid = str(uuid.uuid4())
-
-#     # Check if the payload contains the correct structure
-#     if data.get("field") == "messages" and "value" in data :
-#         value = data["value"]
-
-
-#         if "messages" in value and "metadata" in value:
-
-#             metadata = value["metadata"]
-#             phone_number_id = metadata["phone_number_id"]
-
-#             for message in value["messages"]:
-#                 sender_number = message.get("from")
-#                 user_message = message.get("text", {}).get("body", "")
-#                 visitor_id = sender_number
-                
-                
-
-#                 print(f"Received message from {sender_number}: {user_message}")
-#                 # Identify bot namespace
-#                 bot_id, user_id = user_bot_id_phone_mapping(phone_number_id)
-
-#                 # Fetch relevant context from Pinecone
-#                 prompt, doc_keys, contexts, file_type, sub_type  = index_handler.retrieve(user_message, bot_id, True, False, "")
-#                 list_of_url_object = [{"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]} for i in range(len(doc_keys))]
-#                 json_string = json.dumps(list_of_url_object)
-
-#                 encoded_string = base64.b64encode(json_string.encode('utf-8')).decode('utf-8')  
-                
-#                 # Generate AI response
-#                 bot_response = openai_client.chat.completions.create(
-#                         model="gpt-4o-2024-08-06",
-#                         messages=[{"role": "user", "content": prompt}],
-#                         temperature=0,
-#                         max_tokens=400,
-#                         top_p=1,
-#                         frequency_penalty=0,
-#                         presence_penalty=0,
-#                         stop=None,
-#                         stream=False,
-#                     )
-#                 print(bot_response.choices[0].message.content)
-
-#                 # Send response back to WhatsApp
-#                 send_whatsapp_message(phone_number_id, sender_number, str(bot_response.choices[0].message.content))
-#                 @after_this_request
-#                 def store_data(response):
-#                     # Store data for analysis
-#                     #  uid, contexts, botid, answer, query, prompt, email, phone, name, visitor_id
-
-#                     store_data_rag_analysis(
-#                         uid, contexts, bot_id, str(bot_response.choices[0].message.content) , user_message, prompt, "", visitor_id, "" , visitor_id
-#                     )
-#                     return response
-#                 return jsonify({"status": "received"}), 200
-
 
 
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
     data = request.get_json()
+    # Generate UID at the start
     uid = str(uuid.uuid4())
     logging.info(f'''data \n {data} \n''')    
-          # Generate UID at the start
 
     # Check if the payload contains the correct structure
     if not data or "entry" not in data or not isinstance(data["entry"], list):
@@ -528,78 +461,176 @@ def whatsapp_webhook():
         return jsonify({"error": "Invalid payload structure"}), 400
     
     for entry in data["entry"]:
+        print(entry)
         if "changes" not in entry or not isinstance(entry["changes"], list):
                 logging.error("Invalid payload structure: Missing 'changes'")
                 continue 
         for change in entry["changes"]:
-                value = change.get("value", {})
+            print(change)
+            value = change.get("value", {})
+            print("\n",value)
+            print("\n",isinstance(value, dict))
 
-                if not isinstance(value, dict):
-                    logging.error("Invalid 'value' structure")
-                    continue
+            if not isinstance(value, dict):
+                logging.error("Invalid 'value' structure")
+                continue
 
-                if "messages" in value and "metadata" in value:
-                    metadata = value.get("metadata", {})
-                    phone_number_id = metadata.get("phone_number_id", "Unknown")
+            print("\n",value.get("metadata"))
+            print("\n",value.get("messages"))
 
-                    for message in value.get("messages", []):
-                        sender_number = message.get("from", "")
-                        user_message = message.get("text", {}).get("body", "")
-                        visitor_id = sender_number
+            if "messages" in value and "metadata" in value:
+                metadata = value.get("metadata", {})
+                phone_number_id = metadata.get("phone_number_id", "Unknown")
+                print("\n",metadata)
+                print("\n",phone_number_id)
 
-                        logging.info(f"Message from {sender_number}: {user_message}")
 
-                        # Identify bot namespace
-                        bot_id, user_id = user_bot_id_phone_mapping(phone_number_id)
+                for message in value.get("messages", []):
+                    sender_number = message.get("from", "")
+                    user_message = message.get("text", {}).get("body", "")
+                    visitor_id = sender_number  
 
-                        # Fetch relevant context from Pinecone
-                        retrieval_result = index_handler.retrieve(user_message, bot_id, True, False, "")
+                    logging.info(f"Message from {sender_number}: {user_message}")
 
-                        # Ensure retrieval_result contains expected values
-                        if retrieval_result and len(retrieval_result) >= 5:
-                            prompt, doc_keys, contexts, file_type, sub_type = retrieval_result
-                        else:
-                            contexts, prompt, doc_keys, file_type, sub_type = [], "", [], [], []  # Default values
+                    # Identify bot namespace
+                    bot_id, user_id = user_bot_id_phone_mapping(phone_number_id)
 
-                        list_of_url_object = [
-                            {"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]}
-                            for i in range(len(doc_keys))
-                        ]
-                        json_string = json.dumps(list_of_url_object)
-                        encoded_string = base64.b64encode(json_string.encode("utf-8")).decode("utf-8")
+                    # Fetch relevant context from Pinecone
+                    retrieval_result = index_handler.retrieve(user_message, bot_id, True, False, "")
 
-                        # Generate AI response
-                        bot_response = openai_client.chat.completions.create(
-                            model="gpt-4o-2024-08-06",
-                            messages=[{"role": "user", "content": prompt}],
-                            temperature=0,
-                            max_tokens=400,
-                            top_p=1,
-                            frequency_penalty=0,
-                            presence_penalty=0,
-                            stop=None,
-                            stream=False,
+                    # Ensure retrieval_result contains expected values
+                    if retrieval_result and len(retrieval_result) >= 5:
+                        prompt, doc_keys, contexts, file_type, sub_type = retrieval_result
+                    else:
+                        contexts, prompt, doc_keys, file_type, sub_type = [], "", [], [], []  # Default values
+
+                    list_of_url_object = [
+                        {"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]}
+                        for i in range(len(doc_keys))
+                    ]
+                    json_string = json.dumps(list_of_url_object)
+                    encoded_string = base64.b64encode(json_string.encode("utf-8")).decode("utf-8")
+
+                    # Generate AI response
+                    bot_response = openai_client.chat.completions.create(
+                        model="gpt-4o-2024-08-06",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0,
+                        max_tokens=400,
+                        top_p=1,
+                        frequency_penalty=0,
+                        presence_penalty=0,
+                        stop=None,
+                        stream=False,
+                    )
+
+                    bot_reply = bot_response.choices[0].message.content
+                    print(bot_reply)
+
+                    # Send response back to WhatsApp
+                    send_whatsapp_message(phone_number_id, sender_number, bot_reply)
+
+                    # Ensure `contexts` is captured correctly in `store_data`
+                    # uid, contexts, botid, answer, query, prompt, email, phone, name, visitor_id
+
+                    @after_this_request
+                    def store_data(response, contexts=contexts, bot_reply=bot_reply, prompt=prompt, visitor_id=visitor_id):
+                        store_data_rag_analysis(
+                            uid, contexts, bot_id, bot_reply, user_message, prompt, "", visitor_id, "", visitor_id
                         )
+                        return response
 
-                        bot_reply = bot_response.choices[0].message.content
-                        print(bot_reply)
-
-                        # Send response back to WhatsApp
-                        send_whatsapp_message(phone_number_id, sender_number, bot_reply)
-
-                        # Ensure `contexts` is captured correctly in `store_data`
-                        # uid, contexts, botid, answer, query, prompt, email, phone, name, visitor_id
-
-                        @after_this_request
-                        def store_data(response, contexts=contexts, bot_reply=bot_reply, prompt=prompt, visitor_id=visitor_id):
-                            store_data_rag_analysis(
-                                uid, contexts, bot_id, bot_reply, user_message, prompt, "", visitor_id, "", visitor_id
-                            )
-                            return response
-
-                    return jsonify({"status": "received"}), 200
+                return jsonify({"status": "received"}), 200
 
     return jsonify({"status": "invalid request"}), 400  # Handle incorrect payloads properly
+
+
+@app.route('/fbmsg/webhook', methods=['GET'])
+def verify_webhook():
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+
+    if mode == "subscribe" and token == "vedantkiranfarde":
+        return challenge, 200  # Return the challenge value
+    else:
+        return jsonify({"error": "Verification failed"}), 403
+
+
+@app.route("/fbmsg/webhook", methods=["POST"])
+def fbmsg_webhook():
+    data = request.get_json()
+    uid = str(uuid.uuid4())
+    logging.info(f"Webhook Event UID: {uid}")
+    logging.info(f"Received Data: {json.dumps(data, indent=2)}")
+
+    # Check if event is from a page subscription
+    if data.get("object") == "page":
+        for entry in data.get("entry", []):
+            for event in entry.get("messaging", []):
+                sender = event.get("sender", {})
+                recipient = event.get("recipient", {})
+                psid = sender.get("id")
+                page_id = recipient.get("id")
+                user_message = event.get("message", {}).get("text", "")
+                message_is_echo = event.get("message", {}).get("is_echo", False)
+
+                # Skip echo, delivery, or read events
+                if message_is_echo or "delivery" in event or "read" in event:
+                    logging.info("Skipped echo/delivery/read event.")
+                    continue
+
+                if not psid or not user_message:
+                    logging.warning("Missing PSID or message.")
+                    continue
+
+                logging.info(f"Message from PSID {psid}: {user_message}")
+
+                # Identify bot namespace (assume similar logic for bot_id lookup)
+                bot_id, user_id = user_bot_id_page_id_mapping(page_id)
+
+                # Retrieve context from Pinecone
+                retrieval_result = index_handler.retrieve(user_message, bot_id, True, False, "")
+
+                if retrieval_result and len(retrieval_result) >= 5:
+                    prompt, doc_keys, contexts, file_type, sub_type = retrieval_result
+                else:
+                    contexts, prompt, doc_keys, file_type, sub_type = [], "", [], [], []
+
+                list_of_url_object = [
+                    {"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]}
+                    for i in range(len(doc_keys))
+                ]
+                encoded_string = base64.b64encode(json.dumps(list_of_url_object).encode("utf-8")).decode("utf-8")
+
+                # Generate AI response
+                bot_response = openai_client.chat.completions.create(
+                    model="gpt-4o-2024-08-06",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    max_tokens=400,
+                    top_p=1,
+                    frequency_penalty=0,
+                    presence_penalty=0
+                )
+
+                bot_reply = bot_response.choices[0].message.content
+                logging.info(f"Bot reply: {bot_reply}")
+
+                # Send response back to FB Messenger
+                send_fb_message(psid, bot_reply)
+
+                # Store data after the response
+                @after_this_request
+                def store_data(response, contexts=contexts, bot_reply=bot_reply, prompt=prompt, visitor_id=psid):
+                    store_data_rag_analysis(
+                        uid, contexts, bot_id, bot_reply, user_message, prompt, "", visitor_id, "", visitor_id
+                    )
+                    return response
+
+        return jsonify({"status": "received"}), 200
+
+    return jsonify({"status": "invalid request"}), 400
 
 
 if __name__ == "__main__":
