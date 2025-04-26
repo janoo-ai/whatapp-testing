@@ -618,7 +618,7 @@ def fbmsg_webhook():
                 logging.info(f"Bot reply: {bot_reply}")
 
                 # Send response back to FB Messenger
-                send_fb_message(psid, bot_reply)
+                send_fb_message(page_id, psid, bot_reply)
 
                 # Store data after the response
                 @after_this_request
@@ -635,3 +635,5 @@ def fbmsg_webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5004, debug=True)  # ,
+
+

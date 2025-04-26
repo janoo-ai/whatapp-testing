@@ -10,7 +10,8 @@ logging.basicConfig(
 
 # Assuming your Facebook Page Access Token is stored as an environment variable
 FB_PAGE_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
-FB_GRAPH_API_URL = "https://graph.facebook.com/v18.0/me/messages"
+FB_GRAPH_API_URL = "https://graph.facebook.com/v22.0/me/messages"
+FB_GRAPH_API_URL_FOR_ACCESS_TOKEN ="https://graph.facebook.com/v22.0"
 
 def user_bot_id_page_id_mapping (page_id):
     con = get_db_connection()
@@ -43,7 +44,28 @@ def user_bot_id_page_id_mapping (page_id):
 
 
 
-def send_fb_message(psid, bot_reply):
+def send_fb_message(page_id, psid, bot_reply):
+    try:
+        # Fetch the Page Access Token first
+        uri = f"{FB_GRAPH_API_URL_FOR_ACCESS_TOKEN}/{page_id}"
+        params_for_token = {
+            "fields": "access_token",
+            "access_token": FB_PAGE_ACCESS_TOKEN  # System token to fetch Page token
+        }
+        
+        res = requests.get(uri, params=params_for_token)
+        res.raise_for_status()
+        data = res.json()
+        access_token = data.get("access_token")
+
+        if not access_token:
+            logging.error(f"No access token found for Page ID {page_id}. Response: {data}")
+            return
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to fetch access token for Page ID {page_id}: {e}")
+        return
+
     headers = {
         "Content-Type": "application/json"
     }
@@ -59,7 +81,7 @@ def send_fb_message(psid, bot_reply):
     }
 
     params = {
-        "access_token": FB_PAGE_ACCESS_TOKEN
+        "access_token": access_token
     }
 
     try:
