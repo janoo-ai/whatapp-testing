@@ -14,6 +14,9 @@ import json
 import os
 from whatsapp import user_bot_id_phone_mapping, send_whatsapp_message
 from fbmessenger import user_bot_id_page_id_mapping, send_fb_message
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s"
@@ -25,7 +28,7 @@ OpenAI_KEY = os.getenv("OpenAI_KEY")
 Pinecone_api_key = os.getenv("Pinecone_api_key")
 vector_count = 8000
 batch_size = 100
-openai_client = OpenAI(api_key=OpenAI_KEY)
+openai_client = OpenAI(api_key = OpenAI_KEY)
 pinecone_client = Pinecone(
     api_key=Pinecone_api_key, environment="us-east-1", pool_threads=30
 )
