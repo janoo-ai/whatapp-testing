@@ -14,6 +14,8 @@ import json
 import os
 from whatsapp import user_bot_id_phone_mapping, send_whatsapp_message
 from fbmessenger import user_bot_id_page_id_mapping, send_fb_message
+from instamessenger import user_bot_instagram_id_mapping
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -634,6 +636,95 @@ def fbmsg_webhook():
         return jsonify({"status": "received"}), 200
 
     return jsonify({"status": "invalid request"}), 400
+
+
+@app.route('/insta/webhook', methods=['GET'])
+def verify_insta_webhook():
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+
+    if mode == "subscribe" and token == "vedantkiranfarde":
+        return challenge, 200  # Return the challenge value
+    else:
+        return jsonify({"error": "Verification failed"}), 403
+
+@app.route("/insta/webhook", methods=["POST"])
+def insta_webhook():
+    data = request.get_json()
+    uid = str(uuid.uuid4())
+    logging.info(f"Webhook Event UID: {uid}")
+    logging.info(f"Received Data: {json.dumps(data, indent=2)}")
+
+    # Check if event is from a page subscription
+    if data.get("object") == "page":
+        for entry in data.get("entry", []):
+            for event in entry.get("messaging", []):
+                sender = event.get("sender", {})
+                recipient = event.get("recipient", {})
+                psid = sender.get("id")
+                instagram_id = recipient.get("id")
+                user_message = event.get("message", {}).get("text", "")
+                message_is_echo = event.get("message", {}).get("is_echo", False)
+
+                # Skip echo, delivery, or read events
+                if message_is_echo or "delivery" in event or "read" in event:
+                    logging.info("Skipped echo/delivery/read event.")
+                    continue
+
+                if not psid or not user_message:
+                    logging.warning("Missing PSID or message.")
+                    continue
+
+                logging.info(f"Message from PSID {psid}: {user_message}")
+
+                # Identify bot namespace (assume similar logic for bot_id lookup)
+                bot_id, user_id, page_id = user_bot_instagram_id_mapping(instagram_id)
+
+                # Retrieve context from Pinecone
+                retrieval_result = index_handler.retrieve(user_message, bot_id, True, False, "")
+
+                if retrieval_result and len(retrieval_result) >= 5:
+                    prompt, doc_keys, contexts, file_type, sub_type = retrieval_result
+                else:
+                    contexts, prompt, doc_keys, file_type, sub_type = [], "", [], [], []
+
+                list_of_url_object = [
+                    {"url": doc_keys[i], "file_type": file_type[i], "sub_type": sub_type[i]}
+                    for i in range(len(doc_keys))
+                ]
+                encoded_string = base64.b64encode(json.dumps(list_of_url_object).encode("utf-8")).decode("utf-8")
+
+                # Generate AI response
+                bot_response = openai_client.chat.completions.create(
+                    model="gpt-4o-2024-08-06",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    max_tokens=400,
+                    top_p=1,
+                    frequency_penalty=0,
+                    presence_penalty=0
+                )
+
+                bot_reply = bot_response.choices[0].message.content
+                logging.info(f"Bot reply: {bot_reply}")
+
+                # Send response back to FB Messenger
+                send_fb_message(page_id, instagram_id, psid, bot_reply)
+
+                # Store data after the response
+                @after_this_request
+                def store_data(response, contexts=contexts, bot_reply=bot_reply, prompt=prompt, visitor_id=psid):
+                    store_data_rag_analysis(
+                        uid, contexts, bot_id, bot_reply, user_message, prompt, "", visitor_id, "", visitor_id
+                    )
+                    return response
+
+        return jsonify({"status": "received"}), 200
+
+    return jsonify({"status": "invalid request"}), 400
+                
+    
 
 
 if __name__ == "__main__":
