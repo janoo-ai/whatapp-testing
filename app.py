@@ -14,7 +14,7 @@ import json
 import os
 from whatsapp import user_bot_id_phone_mapping, send_whatsapp_message
 from fbmessenger import user_bot_id_page_id_mapping, send_fb_message
-from instamessenger import user_bot_instagram_id_mapping
+from instamessenger import user_bot_instagram_id_mapping, send_insta_message
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -623,7 +623,7 @@ def fbmsg_webhook():
                 logging.info(f"Bot reply: {bot_reply}")
 
                 # Send response back to FB Messenger
-                send_fb_message(page_id, psid, bot_reply)
+                send_insta_message(page_id, psid, bot_reply)
 
                 # Store data after the response
                 @after_this_request
