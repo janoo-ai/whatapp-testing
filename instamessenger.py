@@ -43,7 +43,7 @@ def user_bot_instagram_id_mapping (instagram_id):
 
 
 
-def send_insta_message(page_id,instagram_id, psid, bot_reply):
+def send_insta_message(page_id, instagram_id, psid, bot_reply):
     """
     Sends a message to a Facebook user (PSID) using the Messenger Platform API.
 
@@ -68,11 +68,11 @@ def send_insta_message(page_id,instagram_id, psid, bot_reply):
         logging.info(f"access_token : {access_token}")
 
         if not access_token:
-            logging.error(f"No access token found for instagram ID {instagram_id}. Response: {data}")
+            logging.error(f"No access token found for PAGE ID {page_id}. Response: {data}")
             return
 
     except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to fetch access token for instagram ID {instagram_id}: {e}")
+        logging.error(f"Failed to fetch access token for PAGE ID {page_id}: {e}")
         return
 
     headers = {

@@ -623,7 +623,7 @@ def fbmsg_webhook():
                 logging.info(f"Bot reply: {bot_reply}")
 
                 # Send response back to FB Messenger
-                send_insta_message(page_id, psid, bot_reply)
+                send_fb_message(page_id, psid, bot_reply)
 
                 # Store data after the response
                 @after_this_request
@@ -657,7 +657,7 @@ def insta_webhook():
     logging.info(f"Received Data: {json.dumps(data, indent=2)}")
 
     # Check if event is from a page subscription
-    if data.get("object") == "page":
+    if data.get("object") == "instagram":
         for entry in data.get("entry", []):
             for event in entry.get("messaging", []):
                 sender = event.get("sender", {})
@@ -680,6 +680,8 @@ def insta_webhook():
 
                 # Identify bot namespace (assume similar logic for bot_id lookup)
                 bot_id, user_id, page_id = user_bot_instagram_id_mapping(instagram_id)
+                
+                logging.info(f"botid, userid, pageid: {bot_id, user_id, page_id}")
 
                 # Retrieve context from Pinecone
                 retrieval_result = index_handler.retrieve(user_message, bot_id, True, False, "")
@@ -710,7 +712,7 @@ def insta_webhook():
                 logging.info(f"Bot reply: {bot_reply}")
 
                 # Send response back to FB Messenger
-                send_fb_message(page_id, instagram_id, psid, bot_reply)
+                send_insta_message(page_id, instagram_id, psid, bot_reply)
 
                 # Store data after the response
                 @after_this_request
